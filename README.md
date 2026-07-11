@@ -92,31 +92,31 @@ The GUI client is implemented in Tkinter and includes:
 The following screenshots demonstrate the main features of the application.
 
 ### 1. Login Window
-![Login Window](screenshots/Login.png)
+![Login Window](Screenshots/Login.png)
 
 ### 2. Chat Window After Successful Connection
-![Successful Connection](screenshots/Online_Users.png)
+![Successful Connection](Screenshots/Online_Users.png)
 
 ### 3. Broadcast Messaging
-![Broadcast Messaging](screenshots/Broadcast.png)
+![Broadcast Messaging](Screenshots/Broadcast.png)
 
 ### 4. Private Messaging
-![Private Messaging](screenshots/Private_Message.png)
+![Private Messaging](Screenshots/Private_Message.png)
 
 ### 5. Client Disconnect
-![Disconnect](screenshots/Disconnect.png)
+![Disconnect](Screenshots/Disconnect.png)
 
 ### 6. Wireshark Capture: Connection
-![Wireshark Connection](screenshots/Wireshark_Connection.png)
+![Wireshark Connection](Screenshots/Wireshark_Connection.png)
 
 ### 7. Wireshark Capture: Broadcast
-![Wireshark Broadcast](screenshots/Wireshark_Broadcast.png)
+![Wireshark Broadcast](Screenshots/Wireshark_Broadcast.png)
 
 ### 8. Wireshark Capture: Private Message
-![Wireshark Private Message](screenshots/Wireshark_PrivateMessage.png)
+![Wireshark Private Message](Screenshots/Wireshark_PrivateMessage.png)
 
 ### 9. Wireshark Capture: Disconnect
-![Wireshark Disconnect](screenshots/Wireshark_Disconnect.png)
+![Wireshark Disconnect](Screenshots/Wireshark_Disconnect.png)
 
 ## Features Tested
 - User login
@@ -141,7 +141,7 @@ The following screenshots demonstrate the main features of the application.
 Assignment_6/
 │── server.py
 │── client_gui.py
-│── screenshots/
+│── Screenshots/
 │   ├── Login.png
 │   ├── Broadcast.png
 │   ├── Private_Message.png
