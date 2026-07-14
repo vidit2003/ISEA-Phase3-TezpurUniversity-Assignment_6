@@ -17,7 +17,7 @@ The objective of this project is to convert the terminal-based TCP chat applicat
 The assignment uses one server and four clients in Mininet.
 
 ```text
-sudo /usr/bin/local/mn --topo single,5
+sudo /usr/local/bin/mn --topo single,5
 ```
 
 Topology:
@@ -37,7 +37,7 @@ pingall
 ## Execution Steps
 1. Start Mininet:
    ```bash
-   sudo /usr/bin/local/mn --topo single,5
+   sudo /usr/local/bin/mn --topo single,5
    ```
 
 2. Start the server on `h1`:
