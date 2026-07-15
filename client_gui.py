@@ -12,8 +12,8 @@ class ChatClientGUI:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("TCP Chat Client")
-        self.root.geometry("860x600")
-        self.root.minsize(800, 560)
+        self.root.geometry("760x500")
+        self.root.minsize(700, 460)
 
         self.client_socket: socket.socket | None = None
         self.receiver_thread: threading.Thread | None = None
@@ -23,7 +23,7 @@ class ChatClientGUI:
         self.incoming_queue: queue.Queue[str] = queue.Queue()
         self.online_users: set[str] = set()
 
-        self.server_ip_var = tk.StringVar(value="127.0.0.1")
+        self.server_ip_var = tk.StringVar(value="10.0.0.1")
         self.username_var = tk.StringVar()
         self.password_var = tk.StringVar()  # Optional field; not sent to server.
         self.message_var = tk.StringVar()
@@ -70,7 +70,7 @@ class ChatClientGUI:
             row=1, column=1, sticky="ew", pady=6
         )
 
-        ttk.Label(form, text="Password (optional):").grid(
+        ttk.Label(form, text="Password:").grid(
             row=2, column=0, sticky="w", pady=6
         )
         ttk.Entry(form, textvariable=self.password_var, show="*", width=28).grid(
@@ -94,13 +94,6 @@ class ChatClientGUI:
             textvariable=self.status_var,
             foreground="#444",
         ).pack(pady=(10, 0))
-
-        hint = ttk.Label(
-            self.login_frame,
-            text="Password is optional and not used by the server.",
-            foreground="#666",
-        )
-        hint.pack(pady=(6, 0))
 
         self.root.bind("<Return>", lambda _e: self.connect_to_server())
 
@@ -231,17 +224,50 @@ class ChatClientGUI:
             pass
 
         try:
-            self.client_socket.send(username.encode())
+            password = self.password_var.get()
+            login_data = f"{username},{password}"
+            self.client_socket.send(login_data.encode())
         except Exception as exc:
             messagebox.showerror("Login Failed", f"Could not send username:\n{exc}")
             self._safe_close_socket()
             return
 
+        # Wait for authentication response from server
+        try:
+            response = self.client_socket.recv(RECV_BUFFER).decode(errors="ignore").strip()
+        except Exception as exc:
+            messagebox.showerror("Login Failed", str(exc))
+            self._safe_close_socket()
+            return
+
+        # Login failed
+        if (
+            "Wrong password" in response
+            or "User not found" in response
+            or "Password must" in response
+            or "Password cannot" in response
+            or "Invalid username" in response
+            or "LOGIN_FAILED" in response
+            or "Account blocked" in response
+            or "Too many failed attempts" in response
+        ):
+            messagebox.showerror("Login Failed", response)
+            self._safe_close_socket()
+            self.status_var.set("Disconnected")
+            return
+
+        # Login successful
         self.connected = True
         self.running = True
+
         self.status_var.set(f"Connected as {username}")
         self.connection_var.set("Connected")
+
         self._swap_to_chat_ui()
+
+        # Show welcome message
+        if response:
+            self._append_message(response)
 
         self.receiver_thread = threading.Thread(
             target=self._receive_loop,
@@ -249,10 +275,12 @@ class ChatClientGUI:
         )
         self.receiver_thread.start()
 
-        # Ask the server for the initial online-user list after login.
         self.root.after(400, self.request_user_list)
 
-        messagebox.showinfo("Success", f"Connected as {username}")
+        messagebox.showinfo(
+            "Success",
+            f"Connected as {username}"
+        )
 
     def _swap_to_chat_ui(self) -> None:
         if self.login_frame is not None:

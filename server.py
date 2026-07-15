@@ -1,3 +1,6 @@
+import json
+import hashlib
+import re
 import csv
 import os
 import time
@@ -8,15 +11,24 @@ from datetime import datetime
 HOST = "0.0.0.0"
 PORT = 5000
 
+MAX_MESSAGE_LENGTH = 200
+MAX_ATTEMPTS = 5
+BLOCK_TIME = 60
+
 # -----------------------------
 # Server Data
 # -----------------------------
 
 clients = {}          # username -> socket
 client_info = {}      # username -> details
+logged_in_users = set()
 lock = threading.Lock()
+failed_attempts = {}
+blocked_until = {}
 
 CHAT_HISTORY = "chat_history.csv"
+SECURITY_LOG = "security_log.txt"
+SESSION_TIMEOUT = 300    # 5 minutes
 
 if (not os.path.exists(CHAT_HISTORY)) or os.path.getsize(CHAT_HISTORY) == 0:
 
@@ -47,8 +59,32 @@ performance = {
 # Helper Functions
 # -----------------------------
 
+USERS_FILE = "users.json"
+
+def valid_username(username):
+    return re.match(r"^[A-Za-z0-9_]{3,20}$", username)
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def load_users():
+    if not os.path.exists(USERS_FILE):
+        return {}
+
+    with open(USERS_FILE, "r") as f:
+        return json.load(f)
+
 def current_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def log_security_event(username, event):
+
+    with open(SECURITY_LOG, "a") as file:
+
+        file.write(
+            f"{current_time()} | {username} | {event}\n"
+        )
 
 def save_message(sender, receiver, msg_type, message):
 
@@ -211,12 +247,17 @@ def remove_client(username):
         pass
 
     del clients[username]
+    
+    # Remove from logged-in users
+    logged_in_users.discard(username)
 
     if username in client_info:
         client_info[username]["status"] = "Offline"
-
+    log_security_event(
+        username,
+        "DISCONNECTED"
+    )
     print(f"[DISCONNECTED] {username}")
-
     broadcast(f"\n*** {username} left the chat ***\n")
 
     print_stats()
@@ -232,15 +273,122 @@ def handle_client(client_socket, address):
 
     try:
 
-        client_socket.send("Enter username: ".encode())
+        client_socket.send("Enter username,password: ".encode())
 
-        username = client_socket.recv(1024).decode().strip()
+        login_data = client_socket.recv(1024).decode().strip()
 
-        if username == "":
+        username, password = login_data.split(",", 1)
+
+# -------------------------------
+# CHECK IF ACCOUNT IS BLOCKED
+# -------------------------------
+        current = time.time()
+
+        if username in blocked_until:
+
+            if current < blocked_until[username]:
+
+                remaining = int(blocked_until[username] - current)
+ 
+                log_security_event(
+                   username,
+                   "LOGIN ATTEMPT WHILE BLOCKED"
+                )
+                client_socket.send(
+                    f"Account blocked. Try again in {remaining} seconds.".encode()
+                )
+
+                client_socket.close()
+                return
+
+        # Validate password length
+        if password.strip() == "":
+
+            client_socket.send(
+                "Password cannot be empty.".encode()
+            )
+
             client_socket.close()
             return
 
+        if len(password) < 6:
+
+            client_socket.send(
+                "Password must be at least 6 characters.".encode()
+            )
+
+            client_socket.close()
+            return
+
+        if not valid_username(username):
+            client_socket.send(
+                "Invalid username.\n".encode()
+            )
+
+            client_socket.close()
+            return
+
+        users = load_users()
+
+        if username not in users:
+
+            client_socket.send(
+                "User not found.\n".encode()
+            )
+
+            client_socket.close()
+            return
+
+        if users[username] != hash_password(password):
+            # 1. Increase failed attempts
+            failed_attempts[username] = failed_attempts.get(username, 0) + 1
+
+            # 2. Check if maximum attempts reached
+            if failed_attempts[username] >= MAX_ATTEMPTS:
+
+               blocked_until[username] = time.time() + BLOCK_TIME
+
+               log_security_event(
+                   username,
+                   "LOGIN BLOCKED"
+               )
+               client_socket.send(
+                   "Too many failed attempts. Login blocked for 60 seconds.".encode()
+               )
+
+               client_socket.close()
+               return
+
+            # 3. If not blocked, tell the user how many attempts remain
+            remaining = MAX_ATTEMPTS - failed_attempts[username]
+
+            client_socket.send(
+                f"Wrong password. {remaining} attempts remaining.".encode()
+            )
+
+            client_socket.close()
+            return
+
+            # Password is correct
+        failed_attempts[username] = 0
+
         with lock:
+
+            if username in logged_in_users:
+
+                log_security_event(
+                   username,
+                   "DUPLICATE LOGIN BLOCKED"
+                )
+
+                client_socket.send(
+                    "LOGIN_FAILED: User already logged in.".encode()
+                )
+
+                client_socket.close()
+                return
+
+            logged_in_users.add(username)
 
             if username in clients:
 
@@ -257,18 +405,24 @@ def handle_client(client_socket, address):
                 "ip": address[0],
                 "port": address[1],
                 "login_time": current_time(),
+                "last_activity": time.time(),
                 "status": "Online"
             }
 
         print(f"[CONNECTED] {username} ({address[0]}:{address[1]})")
+        log_security_event(
+            username,
+            "LOGIN SUCCESS"
+        )
 
         broadcast(f"\n*** {username} joined the chat ***\n", username)
 
         print_stats()
 
         client_socket.send(
-            "\nWelcome to TCP Chat Server!\n".encode()
+            "LOGIN_SUCCESS\nWelcome to TCP Chat Server!\n".encode()
         )
+        client_socket.settimeout(1)
 
         history = load_last_messages(username)
 
@@ -295,11 +449,42 @@ def handle_client(client_socket, address):
 
         while True:
 
-            data = client_socket.recv(1024)
+            try:
+                data = client_socket.recv(1024)
+
+            except socket.timeout:
+
+                if (
+                    time.time()
+                    - client_info[username]["last_activity"]
+                ) > SESSION_TIMEOUT:
+
+                    client_socket.send(
+                        "Session expired due to inactivity.".encode()
+                    )
+
+                    log_security_event(
+                        username,
+                        "SESSION TIMEOUT"
+                    )
+
+                    break
+
+                continue
 
             if not data:
                 break 
             message = data.decode().strip()
+
+            client_info[username]["last_activity"] = time.time()
+
+            if len(message) > MAX_MESSAGE_LENGTH:
+
+                client_socket.send(
+                    "Message exceeds maximum length.".encode()
+                )
+
+                continue
 
             if message == "":
                 continue
@@ -309,6 +494,38 @@ def handle_client(client_socket, address):
             # ----------------------------------
             if message == "/list":
                 send_user_list(client_socket)
+                continue
+            if message == "/logout":
+
+                client_socket.send(
+                    "Logging out...".encode()
+                )
+
+                log_security_event(
+                    username,
+                    "LOGOUT"
+                )
+
+                break
+
+            # ----------------------------------
+            # UNSUPPORTED COMMANDS
+            # ----------------------------------
+            if (
+                message.startswith("/")
+                and not message.startswith("/msg")
+                and message not in ["/list", "/logout"]
+            ):
+
+                client_socket.send(
+                    "Unsupported command.\n".encode()
+                )
+
+                log_security_event(
+                    username,
+                    "UNSUPPORTED COMMAND"
+                )
+
                 continue
 
             # ----------------------------------

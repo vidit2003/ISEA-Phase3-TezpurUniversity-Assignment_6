@@ -1,39 +1,46 @@
-# GUI-Based Multi-Client Chat Application Using TCP
-
-## Project Title
-GUI-Based Multi-Client Chat Application Using TCP
+# Assignment 7 — Secure Network Application Development Using TCP
 
 ## Objective
-The objective of this project is to convert the terminal-based TCP chat application from Assignment 5 into a graphical desktop application using Python Tkinter. The server logic is reused with minimal modification, while the client is redesigned with a login window, chat window, online user list, and responsive background message handling.
+Enhance the GUI-based multi-client TCP chat application from Assignment 6 by adding practical security features such as authentication, password hashing, duplicate login prevention, input validation, failed login blocking, session timeout, and secure logging.
 
-## Software Requirements
-- Python 3
-- Tkinter (`python3-tk`)
-- Mininet
-- Wireshark
-- Linux environment such as Ubuntu, Kali, or Parrot OS
+## Features Implemented
+- Username and password based authentication
+- Password storage using SHA-256 hashes in `users.json`
+- Duplicate login prevention for the same user
+- Input validation for usernames, passwords, messages, and commands
+- Temporary login blocking after 5 failed attempts
+- Logout support
+- Inactivity-based session timeout
+- Secure logging without storing plaintext passwords
+- Private messaging and broadcast messaging
+- Online user list refresh
 
-## Network Topology
-The assignment uses one server and four clients in Mininet.
+## Project Files
+- `server.py` — TCP server with authentication and security controls
+- `client_gui.py` — Tkinter-based client GUI
+- `users.json` — stored user credentials as SHA-256 hashes
+- `chat_history.csv` — message history log
+- `security_log.txt` — security events log
+- `screenshots/` — screenshots used for report and Wireshark verification
+- `report.pdf` — final report
+- `handwritten_reflection.pdf` — scanned handwritten answers
 
-```text
+=======
+## How to Run
+
+### 1) Start Mininet
+```bash
 sudo /usr/local/bin/mn --topo single,5
 ```
 
-Topology:
-- `h1` : Chat Server
-- `h2` : Client A
-- `h3` : Client B
-- `h4` : Client C
-- `h5` : Client D
-
-Verify connectivity using:
+Verify the topology:
 ```bash
 nodes
 net
 pingall
 ```
 
+<<<<<<< HEAD
 ## Execution Steps
 1. Start Mininet:
    ```bash
@@ -153,6 +160,90 @@ Assignment_6/
 │   └── Wireshark_Disconnect.png
 │── report.pdf
 └── README.md
+=======
+### 2) Start the server
+```bash
+python3 server.py
 ```
 
+### 3) Start the client
+```bash
+python3 client_gui.py
+```
 
+### 4) Login
+Use a valid username and password that exist in `users.json`.
+
+## Security Demonstration / Testing
+
+### Login validation
+The client/server should reject:
+- empty passwords
+- passwords shorter than 6 characters
+- invalid usernames
+- unknown users
+
+### Failed login protection
+After 5 failed attempts, the account is blocked for 60 seconds.
+
+### Duplicate login prevention
+If the same username is already logged in, the second login attempt is rejected.
+
+### Session management
+If the user stays inactive for too long, the server closes the session and logs a timeout event.
+
+### Secure logging
+The server records events such as:
+- `LOGIN SUCCESS`
+- `LOGIN BLOCKED`
+- `DUPLICATE LOGIN BLOCKED`
+- `SESSION TIMEOUT`
+- `DISCONNECTED`
+- `LOGOUT`
+
+## Wireshark Verification
+Capture packets on the TCP port used by the application:
+```bash
+tcp.port == 5000
+```
+
+Use Wireshark to show:
+- login attempt
+- failed login
+- authenticated communication after login
+- logout / disconnect traffic
+
+## Screenshots
+The screenshots below show the security checks, successful login flow, duplicate login prevention, session timeout, and Wireshark verification.
+
+### Summary Sheet
+![Screenshot contact sheet](screenshots/contact_sheet.png)
+
+### Authentication and validation
+| Wrong password | User not found | Password too short |
+|---|---|---|
+| ![Wrong password](screenshots/login_wrong_password.png) | ![User not found](screenshots/user_not_found.png) | ![Password too short](screenshots/password_too_short.png) |
+
+| Too many failed attempts | Successful login | Duplicate login blocked |
+|---|---|---|
+| ![Login blocked](screenshots/login_blocked.png) | ![Login success](screenshots/login_success_chat.png) | ![Duplicate login blocked](screenshots/duplicate_login_blocked.png) |
+
+### Session and messaging
+| Authenticated chat | Session timeout / disconnect | Server disconnect |
+|---|---|---|
+| ![Authenticated chat](screenshots/authenticated_chat_broadcast.png) | ![Session disconnected](screenshots/session_disconnected.png) | ![Disconnected by server](screenshots/disconnected_by_server.png) |
+
+### Wireshark verification
+| Failed login traffic | Authenticated traffic | Logout / timeout traffic |
+|---|---|---|
+| ![Wireshark failed login](screenshots/wireshark_wrong_password.png) | ![Wireshark authenticated](screenshots/wireshark_authenticated_traffic.png) | ![Wireshark logout](screenshots/wireshark_logout_timeout.png) |
+
+## Sample Test Data
+Preloaded users are stored in `users.json` and are saved as SHA-256 hashes.
+
+## Notes
+- This project reuses the Assignment 6 TCP chat application and extends it with security features.
+- Never store or display plaintext passwords.
+
+## Conclusion
+This assignment demonstrates how a simple GUI-based TCP chat system can be improved with basic security controls such as authentication, password hashing, duplicate login prevention, session management, and secure logging.
