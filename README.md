@@ -94,9 +94,6 @@ Use Wireshark to show:
 ## Screenshots
 The screenshots below show the security checks, successful login flow, duplicate login prevention, session timeout, and Wireshark verification.
 
-### Summary Sheet
-![Screenshot contact sheet](Screenshots/contact_sheet.png)
-
 ### Authentication and validation
 | Wrong password | User not found | Password too short |
 |---|---|---|
