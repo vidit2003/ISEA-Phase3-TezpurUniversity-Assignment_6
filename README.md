@@ -25,7 +25,6 @@ Enhance the GUI-based multi-client TCP chat application from Assignment 6 by add
 - `report.pdf` — final report
 - `handwritten_reflection.pdf` — scanned handwritten answers
 
-=======
 ## How to Run
 
 ### 1) Start Mininet
@@ -40,127 +39,6 @@ net
 pingall
 ```
 
-<<<<<<< HEAD
-## Execution Steps
-1. Start Mininet:
-   ```bash
-   sudo /usr/local/bin/mn --topo single,5
-   ```
-
-2. Start the server on `h1`:
-   ```bash
-   h1 python3 server.py
-   ```
-
-3. Open separate terminals for clients:
-   ```bash
-   xterm h2
-   xterm h3
-   xterm h4
-   xterm h5
-   ```
-
-4. Run the GUI client on each host:
-   ```bash
-   python3 client_gui.py
-   ```
-
-5. Use the server IP:
-   ```text
-   10.0.0.1
-   ```
-
-6. Login with a unique username for each client and test broadcast, private messaging, user list updates, and disconnect.
-
-## Brief Description of the Implementation
-This application is based on a client-server TCP architecture.
-
-### Server Side
-The server accepts multiple clients using threads and supports:
-- username login
-- broadcast messaging
-- private messaging using `/msg <username> <message>`
-- online user list using `/list`
-- join and leave notifications
-- chat history logging
-- performance logging
-
-### Client Side
-The GUI client is implemented in Tkinter and includes:
-- login window
-- message display area with scrolling
-- message input box
-- recipient selection for broadcast or private message
-- online users list
-- connect and disconnect controls
-- background thread for receiving messages so the GUI remains responsive
-
-## Sample Screenshots
-The following screenshots demonstrate the main features of the application.
-
-### 1. Login Window
-![Login Window](Screenshots/Login.png)
-
-### 2. Chat Window After Successful Connection
-![Successful Connection](Screenshots/Online_Users.png)
-
-### 3. Broadcast Messaging
-![Broadcast Messaging](Screenshots/Broadcast.png)
-
-### 4. Private Messaging
-![Private Messaging](Screenshots/Private_Message.png)
-
-### 5. Client Disconnect
-![Disconnect](Screenshots/Disconnect.png)
-
-### 6. Wireshark Capture: Connection
-![Wireshark Connection](Screenshots/Wireshark_Connection.png)
-
-### 7. Wireshark Capture: Broadcast
-![Wireshark Broadcast](Screenshots/Wireshark_Broadcast.png)
-
-### 8. Wireshark Capture: Private Message
-![Wireshark Private Message](Screenshots/Wireshark_PrivateMessage.png)
-
-### 9. Wireshark Capture: Disconnect
-![Wireshark Disconnect](Screenshots/Wireshark_Disconnect.png)
-
-## Features Tested
-- User login
-- Broadcast messaging
-- Private messaging
-- Online user list
-- Join notification
-- Leave notification
-- Disconnect
-- Multiple simultaneous clients
-
-## Notes
-- This project reuses the Assignment 5 networking logic.
-- The GUI client keeps socket receiving operations in a separate background thread.
-- The recommended Wireshark filter is:
-  ```text
-  tcp.port == 5000
-  ```
-
-## Repository Structure
-```text
-Assignment_6/
-│── server.py
-│── client_gui.py
-│── Screenshots/
-│   ├── Login.png
-│   ├── Broadcast.png
-│   ├── Private_Message.png
-│   ├── Online_Users.png
-│   ├── Disconnect.png
-│   ├── Wireshark_Connection.png
-│   ├── Wireshark_Broadcast.png
-│   ├── Wireshark_PrivateMessage.png
-│   └── Wireshark_Disconnect.png
-│── report.pdf
-└── README.md
-=======
 ### 2) Start the server
 ```bash
 python3 server.py
@@ -217,26 +95,26 @@ Use Wireshark to show:
 The screenshots below show the security checks, successful login flow, duplicate login prevention, session timeout, and Wireshark verification.
 
 ### Summary Sheet
-![Screenshot contact sheet](screenshots/contact_sheet.png)
+![Screenshot contact sheet](Screenshots/contact_sheet.png)
 
 ### Authentication and validation
 | Wrong password | User not found | Password too short |
 |---|---|---|
-| ![Wrong password](screenshots/login_wrong_password.png) | ![User not found](screenshots/user_not_found.png) | ![Password too short](screenshots/password_too_short.png) |
+| ![Wrong password](Screenshots/login_wrong_password.png) | ![User not found](Screenshots/user_not_found.png) | ![Password too short](Screenshots/password_too_short.png) |
 
 | Too many failed attempts | Successful login | Duplicate login blocked |
 |---|---|---|
-| ![Login blocked](screenshots/login_blocked.png) | ![Login success](screenshots/login_success_chat.png) | ![Duplicate login blocked](screenshots/duplicate_login_blocked.png) |
+| ![Login blocked](Screenshots/login_blocked.png) | ![Login success](Screenshots/login_success_chat.png) | ![Duplicate login blocked](Screenshots/duplicate_login_blocked.png) |
 
 ### Session and messaging
 | Authenticated chat | Session timeout / disconnect | Server disconnect |
 |---|---|---|
-| ![Authenticated chat](screenshots/authenticated_chat_broadcast.png) | ![Session disconnected](screenshots/session_disconnected.png) | ![Disconnected by server](screenshots/disconnected_by_server.png) |
+| ![Authenticated chat](Screenshots/authenticated_chat_broadcast.png) | ![Session disconnected](Screenshots/session_disconnected.png) | ![Disconnected by server](Screenshots/disconnected_by_server.png) |
 
 ### Wireshark verification
 | Failed login traffic | Authenticated traffic | Logout / timeout traffic |
 |---|---|---|
-| ![Wireshark failed login](screenshots/wireshark_wrong_password.png) | ![Wireshark authenticated](screenshots/wireshark_authenticated_traffic.png) | ![Wireshark logout](screenshots/wireshark_logout_timeout.png) |
+| ![Wireshark failed login](Screenshots/wireshark_wrong_password.png) | ![Wireshark authenticated](Screenshots/wireshark_authenticated_traffic.png) | ![Wireshark logout](Screenshots/wireshark_logout_timeout.png) |
 
 ## Sample Test Data
 Preloaded users are stored in `users.json` and are saved as SHA-256 hashes.
