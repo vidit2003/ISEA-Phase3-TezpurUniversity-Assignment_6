@@ -1,3 +1,4 @@
+import psutil
 import json
 import hashlib
 import re
@@ -8,10 +9,21 @@ import socket
 import threading
 from datetime import datetime
 
-HOST = "0.0.0.0"
-PORT = 5000
+with open("config.json", "r") as file:
+    config = json.load(file)
 
-MAX_MESSAGE_LENGTH = 200
+HOST = config["host"]
+PORT = config["port"]
+
+MAX_MESSAGE_LENGTH = config["max_message_length"]
+SESSION_TIMEOUT = config["session_timeout"]
+MAX_CLIENTS = config["max_clients"]
+
+#HOST = "0.0.0.0"
+#PORT = 5000
+
+#MAX_MESSAGE_LENGTH = 200
+
 MAX_ATTEMPTS = 5
 BLOCK_TIME = 60
 
@@ -26,9 +38,29 @@ lock = threading.Lock()
 failed_attempts = {}
 blocked_until = {}
 
+max_connected_clients = 0
+
 CHAT_HISTORY = "chat_history.csv"
 SECURITY_LOG = "security_log.txt"
-SESSION_TIMEOUT = 300    # 5 minutes
+PERFORMANCE_FILE = "performance_results.csv"
+
+if (not os.path.exists(PERFORMANCE_FILE)) or os.path.getsize(PERFORMANCE_FILE) == 0:
+
+    with open(PERFORMANCE_FILE, "w", newline="") as file:
+
+        writer = csv.writer(file)
+
+        writer.writerow([
+            "Clients",
+            "Broadcast",
+            "Private",
+            "Average Delay (ms)",
+            "Throughput (msg/s)",
+            "CPU Usage (%)",
+            "Memory Usage (%)"
+        ])
+
+# SESSION_TIMEOUT = 900    #15 minutes
 
 if (not os.path.exists(CHAT_HISTORY)) or os.path.getsize(CHAT_HISTORY) == 0:
 
@@ -140,17 +172,43 @@ def save_performance_result(num_clients):
     else:
         throughput = 0
 
-    with open("performance_results.csv", "a", newline="") as file:
+    cpu_usage = psutil.cpu_percent(interval=1)
+    memory_usage = psutil.virtual_memory().percent
 
+    # Store values in a list
+    row = [
+        num_clients,
+        stats["broadcast_messages"],
+        stats["private_messages"],
+        round(avg_delay, 2),
+        round(throughput, 2),
+        round(cpu_usage, 2),
+        round(memory_usage, 2)
+    ]
+
+    # Save to CSV
+    with open(PERFORMANCE_FILE, "a", newline="") as file:
         writer = csv.writer(file)
+        writer.writerow(row)
 
-        writer.writerow([
-            num_clients,
-            stats["broadcast_messages"],
-            stats["private_messages"],
-            round(avg_delay, 2),
-            round(throughput, 2)
-        ])
+    # Display formatted table in terminal
+    print("\n" + "=" * 90)
+    print(f"{'Clients':<10}"
+          f"{'Broadcast':<12}"
+          f"{'Private':<10}"
+          f"{'Avg Delay(ms)':<18}"
+          f"{'Throughput(msg/s)':<20}"
+          f"{'CPU(%)':<10}"
+          f"{'Memory(%)':<10}")
+    print("-" * 90)
+    print(f"{row[0]:<10}"
+          f"{row[1]:<12}"
+          f"{row[2]:<10}"
+          f"{row[3]:<18}"
+          f"{row[4]:<20}"
+          f"{row[5]:<10}"
+          f"{row[6]:<10}")
+    print("=" * 90)
 
 def broadcast(message, exclude=None):
     """
@@ -158,21 +216,24 @@ def broadcast(message, exclude=None):
     """
 
     with lock:
-        dead_clients = []
+        client_list = list(clients.items())
 
-        for username, sock in clients.items():
+    dead_clients = []
 
-            if username == exclude:
-                continue
+    for username, sock in client_list:
 
-            try:
-                sock.send(message.encode())
+        if username == exclude:
+            continue
 
-            except:
-                dead_clients.append(username)
+        try:
+            sock.send(message.encode())
 
-        for username in dead_clients:
-            remove_client(username)
+        except Exception as e:
+            print("Socket Error:", e)
+            dead_clients.append(username)
+
+    for username in dead_clients:
+        remove_client(username)
 
 
 # -----------------------------
@@ -185,27 +246,22 @@ def private_message(sender, receiver, message):
         if receiver not in clients:
             return False
 
-        try:
-            clients[receiver].send(
-                f"[PRIVATE] {sender}: {message}".encode()
-            )
-# Save private message 
-            save_message(
-                sender,
-                receiver,
-                "private",
-                message
-            )
+        sock = clients[receiver]
 
-            stats["private_messages"] += 1
-            stats["total_messages"] += 1
+    try:
+        sock.send(f"[PRIVATE] {sender}: {message}".encode())
 
-            return True
+        save_message(sender, receiver, "private", message)
 
-        except:
-            remove_client(receiver)
-            return False
+        stats["private_messages"] += 1
+        stats["total_messages"] += 1
 
+        return True
+
+    except Exception as e:
+        print("Socket Error:", e)
+        remove_client(receiver)
+        return False
 
 # -----------------------------
 # Online User List
@@ -233,41 +289,58 @@ def send_user_list(client_socket):
 
         client_socket.send(response.encode())
 
+
 def remove_client(username):
     """
     Remove disconnected client.
     """
 
-    if username not in clients:
-        return
+    with lock:
+
+        if username not in clients:
+            return
+
+        # Save socket before removing client
+        sock = clients[username]
+
+        # Remove from shared data structures
+        del clients[username]
+        logged_in_users.discard(username)
+
+        if username in client_info:
+            client_info[username]["status"] = "Offline"
+
+    # Close socket outside the lock
+    try:
+        sock.shutdown(socket.SHUT_RDWR)
+    except Exception as e:
+        print("Socket Error:", e)
 
     try:
-        clients[username].close()
-    except:
-        pass
+        sock.close()
+    except Exception as e:
+        print("Socket Error:", e)
 
-    del clients[username]
-    
-    # Remove from logged-in users
-    logged_in_users.discard(username)
-
-    if username in client_info:
-        client_info[username]["status"] = "Offline"
+    # Log the disconnection
     log_security_event(
         username,
         "DISCONNECTED"
     )
-    print(f"[DISCONNECTED] {username}")
+
+    print(f"[INFO] {username} disconnected successfully. Resources released.")
+
+    # Notify remaining users
     broadcast(f"\n*** {username} left the chat ***\n")
 
     print_stats()
-
 
 # -----------------------------
 # Client Thread
 # -----------------------------
 
 def handle_client(client_socket, address):
+
+    global max_connected_clients
 
     username = None
 
@@ -401,6 +474,10 @@ def handle_client(client_socket, address):
 
             clients[username] = client_socket
 
+
+            if len(clients) > max_connected_clients:
+                max_connected_clients = len(clients)
+
             client_info[username] = {
                 "ip": address[0],
                 "port": address[1],
@@ -408,6 +485,8 @@ def handle_client(client_socket, address):
                 "last_activity": time.time(),
                 "status": "Online"
             }
+
+
 
         print(f"[CONNECTED] {username} ({address[0]}:{address[1]})")
         log_security_event(
@@ -582,13 +661,12 @@ def handle_client(client_socket, address):
                 f"{username}: {message}",
                 username
             )
-            
+
             end = time.perf_counter()
 
             delay_ms = (end - start) * 1000
 
-            performance["delivery_times"].append(delay_ms)
- 
+            performance["delivery_times"].append(delay_ms) 
             print_stats()
 
     except Exception as e:
@@ -611,7 +689,7 @@ def start_server():
 
     server.bind((HOST, PORT))
 
-    server.listen(10)
+    server.listen(MAX_CLIENTS)
 
     print("=" * 50)
     print(" Advanced Multi-Client TCP Chat Server ")
@@ -619,18 +697,48 @@ def start_server():
     print(f"Listening on {HOST}:{PORT}")
     print("=" * 50)
 
-    while True:
+    try:
 
-        client_socket, address = server.accept()
+        while True:
 
-        thread = threading.Thread(
-            target=handle_client,
-            args=(client_socket, address),
-            daemon=True
-        )
+            client_socket, address = server.accept()
 
-        thread.start()
+            thread = threading.Thread(
+                target=handle_client,
+                args=(client_socket, address),
+                daemon=True
+            )
 
+            thread.start()
+
+    except KeyboardInterrupt:
+
+        print("\nServer shutting down...")
+
+        with lock:
+
+
+            for username, sock in list(clients.items()):
+
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                except:
+                    pass
+
+                try:
+                    sock.close()
+                except:
+                    pass
+
+            clients.clear()
+
+        save_performance_result(max_connected_clients)
+
+        # Save performance results
+        server.close()
+
+        print("All client connections closed.")
+        print("Server stopped successfully.")
 
 if __name__ == "__main__":
     start_server()
