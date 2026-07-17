@@ -4,7 +4,14 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
-SERVER_PORT = 5000
+#SERVER_PORT = 5000
+import json
+
+with open("config.json", "r") as file:
+    config = json.load(file)
+
+SERVER_PORT = config["port"]
+
 RECV_BUFFER = 4096
 
 
@@ -289,6 +296,59 @@ class ChatClientGUI:
 
         self._build_chat_ui()
 
+    #---------------------------Auto-Reconnect-------------------
+
+    def _auto_reconnect(self, server_ip: str, username: str, password: str) -> bool:
+        for _ in range(3):
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.connect((server_ip, SERVER_PORT))
+                sock.settimeout(0.5)
+                self.client_socket = sock
+
+                prompt = self.client_socket.recv(RECV_BUFFER).decode(errors="ignore")
+                if prompt:
+                    self._append_message(prompt.rstrip())
+
+                self.client_socket.send(f"{username},{password}".encode())
+                response = self.client_socket.recv(RECV_BUFFER).decode(errors="ignore").strip()
+
+                if (
+                    "Wrong password" in response
+                    or "User not found" in response
+                    or "Password must" in response
+                    or "Password cannot" in response
+                    or "Invalid username" in response
+                    or "LOGIN_FAILED" in response
+                    or "Account blocked" in response
+                    or "Too many failed attempts" in response
+                ):
+                    self._safe_close_socket()
+                    return False
+
+                self.connected = True
+                self.running = True
+                self.connection_var.set("Connected")
+                self.status_var.set(f"Reconnected as {username}")
+
+                self._swap_to_chat_ui()
+                if response:
+                    self._append_message(response)
+
+                self.receiver_thread = threading.Thread(
+                    target=self._receive_loop,
+                    daemon=True,
+                )
+                self.receiver_thread.start()
+
+                self.root.after(400, self.request_user_list)
+                return True
+
+            except Exception:
+                self._safe_close_socket()
+
+        return False
+
     # ------------------------- RECEIVER -------------------------
 
     def _receive_loop(self) -> None:
@@ -480,19 +540,42 @@ class ChatClientGUI:
         messagebox.showinfo("Disconnected", "You have been disconnected.")
 
     def _handle_remote_disconnect(self) -> None:
+
         self.running = False
         self.connected = False
+
         self._safe_close_socket()
+
         self.connection_var.set("Disconnected")
         self.status_var.set("Server disconnected")
 
+        server_ip = self.server_ip_var.get().strip()
+        username = self.username_var.get().strip()
+        password = self.password_var.get()
+
+        if self._auto_reconnect(server_ip, username, password):
+
+            messagebox.showinfo(
+                "Reconnected",
+                "Connection restored."
+            )
+
+            return
+
         if self.chat_frame is not None:
+
             self.chat_frame.destroy()
+
             self.chat_frame = None
 
         self.online_users.clear()
+
         self._build_login_ui()
-        messagebox.showwarning("Disconnected", "Connection closed by server.")
+
+        messagebox.showwarning(
+            "Disconnected",
+            "Connection closed by server."
+        )
 
     def _safe_close_socket(self) -> None:
         sock = self.client_socket
